@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversor PBR</title>
+
+<style>
+
+body{
+    font-family:Arial, sans-serif;
+    background:#f1f5f9;
+    margin:0;
+    padding:20px;
+}
+
+.container{
+    background:#fff;
+    border-radius:14px;
+    padding:20px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+h1{
+    text-align:center;
+    color:#0f172a;
+    margin-bottom:20px;
+}
+
+/* AREA DROP */
+
+.drop-area{
+    border:3px dashed #3b82f6;
+    border-radius:14px;
+    padding:35px;
+    text-align:center;
+    background:#eff6ff;
+    color:#1e3a8a;
+    font-size:18px;
+    font-weight:bold;
+    transition:0.3s;
+    margin-bottom:20px;
+}
+
+.drop-area.dragover{
+    background:#dbeafe;
+    transform:scale(1.01);
+}
+
+.topo{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+}
+
+input[type=file]{
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #ccc;
+}
+
+button{
+    padding:10px 18px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+    transition:0.2s;
+}
+
+.btn-converter{
+    background:#2563eb;
+    color:white;
+}
+
+.btn-download{
+    background:#16a34a;
+    color:white;
+}
+
+button:hover{
+    opacity:0.9;
+}
+
+/* RESUMO */
+
+.resumo{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:15px;
+    margin-bottom:25px;
+}
+
+.card{
+    background:#f8fafc;
+    border-left:6px solid #2563eb;
+    border-radius:10px;
+    padding:12px;
+    box-shadow:0 2px 5px rgba(0,0,0,0.05);
+}
+
+.card h3{
+    margin:0;
+    font-size:14px;
+    color:#475569;
+}
+
+.card p{
+    margin-top:8px;
+    font-size:16px;
+    font-weight:bold;
+    color:#0f172a;
+    word-break:break-word;
+}
+
+/* TABELA */
+
+.tabela-container{
+    overflow:auto;
+    max-height:70vh;
+    border:1px solid #d1d5db;
+    border-radius:10px;
+}
+
+table{
+    border-collapse:collapse;
+    width:max-content;
+    min-width:100%;
+    font-size:13px;
+}
+
+th{
+    position:sticky;
+    top:0;
+    background:#1e293b;
+    color:white;
+    z-index:2;
+}
+
+th, td{
+    border:1px solid #d1d5db;
+    padding:8px;
+    white-space:nowrap;
+}
+
+tr:nth-child(even){
+    background:#f8fafc;
+}
+
+/* CAMPOS DESTACADOS */
+
+.destaque{
+    background:#fef3c7 !important;
+    font-weight:bold;
+    color:#92400e;
+}
+
+.info{
+    margin-bottom:15px;
+    color:#475569;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Conversor PBR</h1>
+
+    <!-- DROP AREA -->
+
+    <div class="drop-area" id="dropArea">
+        Arraste o arquivo TXT aqui ou clique para selecionar
+    </div>
+
+    <div class="topo">
+
+        <input type="file" id="arquivoTxt" accept=".txt,.csv">
+
+        <button class="btn-converter" onclick="converterArquivo()">
+            Converter Arquivo
+        </button>
+
+        <button class="btn-download" onclick="baixarExcel()">
+            Baixar Planilha
+        </button>
+
+    </div>
+
+    <!-- RESUMO -->
+
+    <div class="resumo">
+
+        <div class="card">
+            <h3>Placa</h3>
+            <p id="resPlaca">-</p>
+        </div>
+
+        <div class="card">
+            <h3>Nota Fiscal</h3>
+            <p id="resNF">-</p>
+        </div>
+
+        <div class="card">
+            <h3>Cidade Origem</h3>
+            <p id="resOrigem">-</p>
+        </div>
+
+        <div class="card">
+            <h3>Cidade Destino</h3>
+            <p id="resDestino">-</p>
+        </div>
+
+        <div class="card">
+            <h3>Valor NF</h3>
+            <p id="resValor">-</p>
+        </div>
+
+        <div class="card">
+            <h3>Peso</h3>
+            <p id="resPeso">-</p>
+        </div>
+
+    </div>
+
+    <div class="info" id="infoTabela">
+        Nenhum arquivo carregado.
+    </div>
+
+    <div class="tabela-container">
+        <table id="tabelaDados"></table>
+    </div>
+
+</div>
+
+<script>
+
+let dadosTabela = [];
+
+/* ===========================
+   DROP AREA
+=========================== */
+
+const dropArea = document.getElementById("dropArea");
+const inputArquivo = document.getElementById("arquivoTxt");
+
+dropArea.addEventListener("click", () => {
+    inputArquivo.click();
+});
+
+dropArea.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropArea.classList.add("dragover");
+});
+
+dropArea.addEventListener("dragleave", () => {
+    dropArea.classList.remove("dragover");
+});
+
+dropArea.addEventListener("drop", (e) => {
+
+    e.preventDefault();
+
+    dropArea.classList.remove("dragover");
+
+    const arquivos = e.dataTransfer.files;
+
+    if (arquivos.length > 0) {
+
+        inputArquivo.files = arquivos;
+
+        converterArquivo();
+    }
+
+});
+
+/* ===========================
+   CONVERSOR
+=========================== */
+
+function converterArquivo() {
+
+    const arquivo = inputArquivo.files[0];
+
+    if (!arquivo) {
+        alert("Selecione um arquivo.");
+        return;
+    }
+
+    const leitor = new FileReader();
+
+    leitor.onload = function(e){
+
+        const texto = e.target.result.trim();
+
+        const linhas = texto.split(/\r?\n/);
+
+        dadosTabela = linhas.map(linha => linha.split(';'));
+
+        montarTabela(dadosTabela);
+
+        gerarResumo(dadosTabela);
+
+    };
+
+    leitor.readAsText(arquivo, 'UTF-8');
+}
+
+/* ===========================
+   TABELA
+=========================== */
+
+function montarTabela(dados){
+
+    const tabela = document.getElementById("tabelaDados");
+
+    tabela.innerHTML = "";
+
+    if(dados.length === 0) return;
+
+    const cabecalho = dados[0];
+
+    const camposDestaque = [
+        "SIGNI",
+        "NFNUM9",
+        "CITY_ORG",
+        "CITY_DEST",
+        "NFTOT",
+        "GROSS_WEIGHT"
+    ];
+
+    // HEADER
+    const thead = document.createElement("thead");
+    const trHead = document.createElement("tr");
+
+    cabecalho.forEach(col => {
+
+        const th = document.createElement("th");
+
+        th.textContent = col;
+
+        if(camposDestaque.includes(col)){
+            th.classList.add("destaque");
+        }
+
+        trHead.appendChild(th);
+
+    });
+
+    thead.appendChild(trHead);
+
+    tabela.appendChild(thead);
+
+    // BODY
+    const tbody = document.createElement("tbody");
+
+    for(let i=1; i<dados.length; i++){
+
+        const tr = document.createElement("tr");
+
+        dados[i].forEach((valor,index)=>{
+
+            const td = document.createElement("td");
+
+            td.textContent = valor;
+
+            if(camposDestaque.includes(cabecalho[index])){
+                td.classList.add("destaque");
+            }
+
+            tr.appendChild(td);
+
+        });
+
+        tbody.appendChild(tr);
+    }
+
+    tabela.appendChild(tbody);
+
+    document.getElementById("infoTabela").innerHTML =
+        `Linhas carregadas: <b>${dados.length - 1}</b> | Colunas: <b>${cabecalho.length}</b>`;
+}
+
+/* ===========================
+   RESUMO
+=========================== */
+
+function gerarResumo(dados){
+
+    if(dados.length < 3) return;
+
+    const header = dados[0];
+    const linha = dados[2];
+
+    function pegarValor(nomeCampo){
+
+        const index = header.indexOf(nomeCampo);
+
+        if(index >= 0){
+            return linha[index];
+        }
+
+        return "-";
+    }
+
+    document.getElementById("resPlaca").innerText =
+        pegarValor("SIGNI");
+
+    document.getElementById("resNF").innerText =
+        pegarValor("NFNUM9");
+
+    document.getElementById("resOrigem").innerText =
+        pegarValor("CITY_ORG");
+
+    document.getElementById("resDestino").innerText =
+        pegarValor("CITY_DEST");
+
+    document.getElementById("resValor").innerText =
+        "R$ " + pegarValor("NFTOT");
+
+    document.getElementById("resPeso").innerText =
+        pegarValor("GROSS_WEIGHT") + " KG";
+}
+
+/* ===========================
+   EXPORTAR CSV
+=========================== */
+
+function baixarExcel(){
+
+    if(dadosTabela.length === 0){
+        alert("Nenhum dado carregado.");
+        return;
+    }
+
+    let csv = "";
+
+    dadosTabela.forEach(linha=>{
+
+        const formatada = linha.map(campo => {
+
+            campo = campo.replace(/"/g,'""');
+
+            return `"${campo}"`;
+
+        }).join(";");
+
+        csv += formatada + "\n";
+    });
+
+    const blob = new Blob(
+        [csv],
+        {type:'text/csv;charset=utf-8;'}
+    );
+
+    const link = document.createElement("a");
+
+    link.href = URL.createObjectURL(blob);
+
+    link.download = "Conversor_PBR.csv";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+}
+
+</script>
+
+</body>
+</html>
