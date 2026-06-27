@@ -9,7 +9,7 @@
 
 body{
     font-family:Arial, sans-serif;
-    background:#6badf0;
+    background:#9fc6ee;
     margin:0;
     padding:20px;
 }
@@ -187,6 +187,9 @@ tr:nth-child(even){
         <button class="btn-download" onclick="baixarExcel()">
             Baixar Planilha
         </button>
+        <button onclick="copiarChaves()" style="background:#ea580c;color:white;">
+    Copiar Chaves NFe
+</button>
 
     </div>
 
@@ -393,38 +396,83 @@ function gerarResumo(dados){
     if(dados.length < 3) return;
 
     const header = dados[0];
-    const linha = dados[2];
 
-    function pegarValor(nomeCampo){
+    // LOCALIZA ÍNDICES
+    const idxPlaca       = header.indexOf("SIGNI");
+    const idxNF          = header.indexOf("NFNUM9");
+    const idxOrigem      = header.indexOf("CITY_ORG");
+    const idxDestino     = header.indexOf("CITY_DEST");
+    const idxValor       = header.indexOf("NFTOT");
+    const idxPeso        = header.indexOf("GROSS_WEIGHT");
 
-        const index = header.indexOf(nomeCampo);
+    let somaValor = 0;
+    let somaPeso  = 0;
 
-        if(index >= 0){
-            return linha[index];
+    let listaNF = [];
+
+    // PEGA PRIMEIRA LINHA COM DADOS
+    const primeiraLinha = dados[2];
+
+    // PERCORRE TODAS AS LINHAS DE DADOS
+    for(let i = 2; i < dados.length; i++){
+
+        const linha = dados[i];
+
+        // SOMA VALORES NF
+        let valorNF = linha[idxValor] || "0";
+
+        valorNF = valorNF
+            .replace(/\./g,'')
+            .replace(',','.');
+
+        somaValor += parseFloat(valorNF) || 0;
+
+        // SOMA PESO
+        let peso = linha[idxPeso] || "0";
+
+        peso = peso
+            .replace(/\./g,'')
+            .replace(',','.');
+
+        somaPeso += parseFloat(peso) || 0;
+
+        // LISTA NF
+        if(linha[idxNF]){
+            listaNF.push(linha[idxNF]);
         }
-
-        return "-";
     }
 
+    // FORMATA MOEDA BR
+    const valorFormatado = somaValor.toLocaleString('pt-BR',{
+        style:'currency',
+        currency:'BRL'
+    });
+
+    // FORMATA PESO
+    const pesoFormatado = somaPeso.toLocaleString('pt-BR',{
+        minimumFractionDigits:3,
+        maximumFractionDigits:3
+    });
+
+    // EXIBE
     document.getElementById("resPlaca").innerText =
-        pegarValor("SIGNI");
+        primeiraLinha[idxPlaca] || "-";
 
     document.getElementById("resNF").innerText =
-        pegarValor("NFNUM9");
+        listaNF.length + " NF(s)";
 
     document.getElementById("resOrigem").innerText =
-        pegarValor("CITY_ORG");
+        primeiraLinha[idxOrigem] || "-";
 
     document.getElementById("resDestino").innerText =
-        pegarValor("CITY_DEST");
+        primeiraLinha[idxDestino] || "-";
 
     document.getElementById("resValor").innerText =
-        "R$ " + pegarValor("NFTOT");
+        valorFormatado;
 
     document.getElementById("resPeso").innerText =
-        pegarValor("GROSS_WEIGHT") + " KG";
+        pesoFormatado + " KG";
 }
-
 /* ===========================
    EXPORTAR CSV
 =========================== */
@@ -469,6 +517,52 @@ function baixarExcel(){
     document.body.removeChild(link);
 }
 
+function copiarChaves(){
+
+    if(dadosTabela.length < 3){
+        alert("Nenhum dado carregado.");
+        return;
+    }
+
+    const header = dadosTabela[0];
+
+    const idxAccessKey = header.indexOf("ACCESS_KEY");
+
+    if(idxAccessKey < 0){
+        alert("Campo ACCESS_KEY não encontrado.");
+        return;
+    }
+
+    let chaves = [];
+
+    for(let i = 2; i < dadosTabela.length; i++){
+
+        const linha = dadosTabela[i];
+
+        const chave = linha[idxAccessKey];
+
+        if(chave && chave.trim() !== ""){
+            chaves.push(chave.trim());
+        }
+    }
+
+    const texto = chaves.join('\n');
+
+    navigator.clipboard.writeText(texto)
+        .then(() => {
+
+            alert(
+                chaves.length +
+                " chave(s) copiadas para memória."
+            );
+
+        })
+        .catch(() => {
+
+            alert("Erro ao copiar.");
+
+        });
+}
 </script>
 
 </body>
