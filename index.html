@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Conversor PBR</title>
+<title>Conversor PBR 1.6</title>
 
 <style>
 
@@ -40,6 +40,7 @@ h1{
     font-weight:bold;
     transition:0.3s;
     margin-bottom:20px;
+    cursor: pointer;
 }
 
 .drop-area.dragover{
@@ -52,12 +53,14 @@ h1{
     gap:10px;
     flex-wrap:wrap;
     margin-bottom:20px;
+    align-items: center;
 }
 
-input[type=file]{
+input[type=file], select{
     padding:10px;
     border-radius:8px;
     border:1px solid #ccc;
+    background: white;
 }
 
 button{
@@ -77,6 +80,14 @@ button{
 .btn-download{
     background:#16a34a;
     color:white;
+}
+
+.btn-excluir {
+    background: #ef4444;
+    color: white;
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 4px;
 }
 
 button:hover{
@@ -170,8 +181,6 @@ tr:nth-child(even){
 
     <h1>Conversor PBR</h1>
 
-    <!-- DROP AREA -->
-
     <div class="drop-area" id="dropArea">
         Arraste o arquivo TXT aqui ou clique para selecionar
     </div>
@@ -187,13 +196,17 @@ tr:nth-child(even){
         <button class="btn-download" onclick="baixarExcel()">
             Baixar Planilha
         </button>
+        
         <button onclick="copiarChaves()" style="background:#ea580c;color:white;">
-    Copiar Chaves NFe
-</button>
+            Copiar Chaves NFe
+        </button>
+
+        <label for="filtroDoc" style="font-weight: bold; color: #1e293b; margin-left: 10px;">Filtrar por Carga</label>
+        <select id="filtroDoc" onchange="filtrarDados()">
+            <option value="TODOS">Todos</option>
+        </select>
 
     </div>
-
-    <!-- RESUMO -->
 
     <div class="resumo">
 
@@ -241,10 +254,27 @@ tr:nth-child(even){
 
 <script>
 
-let dadosTabela = [];
+let dadosTabela = []; 
+let dadosFiltrados = []; 
+
+// Nome exato da coluna do tipo de documento no seu TXT.
+const COLUNA_DOC_TRANSPORTE = "REBEL"; 
+
+/* ===================================================
+   BLOQUEIO GLOBAL DO COMPORTAMENTO PADRÃO DO NAVEGADOR
+   (Evita que o arquivo abra em uma nova aba se errar o drop)
+====================================================== */
+window.addEventListener("dragover", function(e) {
+    e.preventDefault();
+}, false);
+
+window.addEventListener("drop", function(e) {
+    e.preventDefault();
+}, false);
+
 
 /* ===========================
-   DROP AREA
+   DROP AREA CONFIGURADA
 =========================== */
 
 const dropArea = document.getElementById("dropArea");
@@ -255,7 +285,7 @@ dropArea.addEventListener("click", () => {
 });
 
 dropArea.addEventListener("dragover", (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Necessário para permitir o drop
     dropArea.classList.add("dragover");
 });
 
@@ -264,20 +294,19 @@ dropArea.addEventListener("dragleave", () => {
 });
 
 dropArea.addEventListener("drop", (e) => {
-
-    e.preventDefault();
-
+    e.preventDefault(); // Impede o navegador de abrir o arquivo
     dropArea.classList.remove("dragover");
-
+    
     const arquivos = e.dataTransfer.files;
-
     if (arquivos.length > 0) {
-
         inputArquivo.files = arquivos;
-
         converterArquivo();
     }
+});
 
+// Vincula também o evento de mudança tradicional do botão de arquivo
+inputArquivo.addEventListener("change", () => {
+    converterArquivo();
 });
 
 /* ===========================
@@ -285,31 +314,169 @@ dropArea.addEventListener("drop", (e) => {
 =========================== */
 
 function converterArquivo() {
-
     const arquivo = inputArquivo.files[0];
-
     if (!arquivo) {
         alert("Selecione um arquivo.");
         return;
     }
 
     const leitor = new FileReader();
-
     leitor.onload = function(e){
-
         const texto = e.target.result.trim();
-
         const linhas = texto.split(/\r?\n/);
+        
+        // Mapeia e limpa linhas vazias
+        dadosTabela = linhas.map(linha => linha.split(';')).filter(l => l.length > 1 || l[0] !== "");
 
-        dadosTabela = linhas.map(linha => linha.split(';'));
+        // Clona para os dados que serão manipulados na tela
+        dadosFiltrados = [...dadosTabela];
 
-        montarTabela(dadosTabela);
-
-        gerarResumo(dadosTabela);
-
+        carregarOpcoesFiltro();
+        atualizarTela();
     };
-
     leitor.readAsText(arquivo, 'UTF-8');
+}
+
+/* ===========================
+   FILTRO DINÂMICO
+=========================== */
+
+function carregarOpcoesFiltro() {
+
+    const select = document.getElementById("filtroDoc");
+
+    select.innerHTML = '<option value="TODOS">Todos</option>';
+
+    if (dadosTabela.length < 3) return;
+
+    const header = dadosTabela[0];
+
+    let idxDoc = header.indexOf(COLUNA_DOC_TRANSPORTE);
+
+    if (idxDoc === -1) {
+        idxDoc = header.findIndex(col =>
+            col.toUpperCase().includes("REBEL")
+        );
+    }
+
+    if (idxDoc === -1) return;
+
+    const tipos = new Set();
+
+    for (let i = 2; i < dadosTabela.length; i++) {
+
+        const valor = dadosTabela[i][idxDoc];
+
+        if (valor && valor.trim() !== "") {
+            tipos.add(valor.trim());
+        }
+    }
+
+    [...tipos]
+        .sort()
+        .forEach(tipo => {
+
+            const opt = document.createElement("option");
+
+            opt.value = tipo;
+            opt.textContent = tipo;
+
+            select.appendChild(opt);
+        });
+}
+
+function filtrarDados() {
+    const valorFiltro = document.getElementById("filtroDoc").value;
+
+    if (dadosTabela.length <= 2) return;
+
+    const header = dadosTabela[0];
+
+    let idxDoc = header.indexOf(COLUNA_DOC_TRANSPORTE);
+
+    if (idxDoc === -1) {
+        idxDoc = header.findIndex(col =>
+            col.toUpperCase().includes("REBEL")
+        );
+    }
+
+    if (valorFiltro === "TODOS" || idxDoc === -1) {
+
+        dadosFiltrados = [
+            dadosTabela[0],
+            dadosTabela[1],
+            ...dadosTabela.slice(2)
+        ];
+
+    } else {
+
+        dadosFiltrados = [
+            dadosTabela[0],
+            dadosTabela[1],
+            ...dadosTabela.slice(2).filter(linha =>
+                (linha[idxDoc] || "").trim() === valorFiltro
+            )
+        ];
+    }
+
+    atualizarTela();
+}
+
+/* ===========================
+   EXCLUSÃO MANUAL (LINHA A LINHA)
+=========================== */
+
+function excluirLinha(indexNaTabelaVisivel) {
+
+    // Linha real da tabela filtrada
+    const linhaParaRemover = dadosFiltrados[indexNaTabelaVisivel];
+
+    // Remove da base principal
+    dadosTabela = dadosTabela.filter(linha => linha !== linhaParaRemover);
+
+    // Reaplica o filtro atual
+    const valorFiltro = document.getElementById("filtroDoc").value;
+
+    const header = dadosTabela[0];
+
+    let idxDoc = header.indexOf(COLUNA_DOC_TRANSPORTE);
+
+    if (idxDoc === -1) {
+        idxDoc = header.findIndex(col =>
+            col.toUpperCase().includes("REBEL")
+        );
+    }
+
+    if (valorFiltro === "TODOS" || idxDoc === -1) {
+
+        dadosFiltrados = [
+            dadosTabela[0],
+            dadosTabela[1],
+            ...dadosTabela.slice(2)
+        ];
+
+    } else {
+
+        dadosFiltrados = [
+            dadosTabela[0],
+            dadosTabela[1],
+            ...dadosTabela.slice(2).filter(linha =>
+                (linha[idxDoc] || "").trim() === valorFiltro
+            )
+        ];
+    }
+
+    // Atualiza cards + tabela
+    atualizarTela();
+}
+
+/* ===========================
+   ATUALIZAÇÃO GERAL DA TELA
+=========================== */
+
+function atualizarTela() {
+    montarTabela(dadosFiltrados);
+    gerarResumo(dadosFiltrados);
 }
 
 /* ===========================
@@ -317,65 +484,90 @@ function converterArquivo() {
 =========================== */
 
 function montarTabela(dados){
-
     const tabela = document.getElementById("tabelaDados");
-
     tabela.innerHTML = "";
 
-    if(dados.length === 0) return;
+    if(dados.length === 0) {
+        document.getElementById("infoTabela").innerHTML = "Nenhum arquivo carregado.";
+        return;
+    }
 
     const cabecalho = dados[0];
 
     const camposDestaque = [
-        "SIGNI",
-        "NFNUM9",
-        "CITY_ORG",
-        "CITY_DEST",
-        "NFTOT",
-        "GROSS_WEIGHT"
+        "SIGNI", "NFNUM9", "CITY_ORG", "CITY_DEST", "NFTOT", "GROSS_WEIGHT"
     ];
 
     // HEADER
     const thead = document.createElement("thead");
     const trHead = document.createElement("tr");
 
+    const thAcoes = document.createElement("th");
+    thAcoes.textContent = "AÇÕES";
+    trHead.appendChild(thAcoes);
+
     cabecalho.forEach(col => {
-
         const th = document.createElement("th");
-
         th.textContent = col;
-
         if(camposDestaque.includes(col)){
             th.classList.add("destaque");
         }
-
         trHead.appendChild(th);
-
     });
 
     thead.appendChild(trHead);
-
     tabela.appendChild(thead);
+
+    // SUBTITULO
+if (dados.length > 1) {
+
+    const trSub = document.createElement("tr");
+
+    const tdVazio = document.createElement("td");
+    tdVazio.innerHTML = "";
+    trSub.appendChild(tdVazio);
+
+    dados[1].forEach((valor, index) => {
+
+        const td = document.createElement("td");
+
+        td.textContent = valor;
+
+        td.style.fontWeight = "bold";
+        td.style.background = "#f8fafc";
+
+        if(camposDestaque.includes(cabecalho[index])){
+            td.classList.add("destaque");
+        }
+
+        trSub.appendChild(td);
+    });
+
+    thead.appendChild(trSub);
+}
 
     // BODY
     const tbody = document.createElement("tbody");
 
-    for(let i=1; i<dados.length; i++){
-
+    for(let i = 2; i < dados.length; i++){
         const tr = document.createElement("tr");
 
-        dados[i].forEach((valor,index)=>{
+        const tdAcao = document.createElement("td");
+        const btnExcluir = document.createElement("button");
+        btnExcluir.textContent = "Excluir";
+        btnExcluir.classList.add("btn-excluir");
+        btnExcluir.onclick = () => excluirLinha(i);
+        tdAcao.appendChild(btnExcluir);
+        tr.appendChild(tdAcao);
 
+        dados[i].forEach((valor, index) => {
             const td = document.createElement("td");
-
             td.textContent = valor;
 
             if(camposDestaque.includes(cabecalho[index])){
                 td.classList.add("destaque");
             }
-
             tr.appendChild(td);
-
         });
 
         tbody.appendChild(tr);
@@ -384,7 +576,7 @@ function montarTabela(dados){
     tabela.appendChild(tbody);
 
     document.getElementById("infoTabela").innerHTML =
-        `Linhas carregadas: <b>${dados.length - 1}</b> | Colunas: <b>${cabecalho.length}</b>`;
+        `Linhas exibidas: <b>${dados.length - 2}</b> | Colunas: <b>${cabecalho.length}</b>`;
 }
 
 /* ===========================
@@ -392,12 +584,18 @@ function montarTabela(dados){
 =========================== */
 
 function gerarResumo(dados){
-
-    if(dados.length < 3) return;
+    if(dados.length < 2){
+        document.getElementById("resPlaca").innerText = "-";
+        document.getElementById("resNF").innerText = "0 NF(s)";
+        document.getElementById("resOrigem").innerText = "-";
+        document.getElementById("resDestino").innerText = "-";
+        document.getElementById("resValor").innerText = "R$ 0,00";
+        document.getElementById("resPeso").innerText = "0,000 KG";
+        return;
+    }
 
     const header = dados[0];
 
-    // LOCALIZA ÍNDICES
     const idxPlaca       = header.indexOf("SIGNI");
     const idxNF          = header.indexOf("NFNUM9");
     const idxOrigem      = header.indexOf("CITY_ORG");
@@ -407,125 +605,99 @@ function gerarResumo(dados){
 
     let somaValor = 0;
     let somaPeso  = 0;
-
     let listaNF = [];
 
-    // PEGA PRIMEIRA LINHA COM DADOS
-    const primeiraLinha = dados[2];
+    const primeiraLinha = dados[2] || [];
 
-    // PERCORRE TODAS AS LINHAS DE DADOS
     for(let i = 2; i < dados.length; i++){
-
         const linha = dados[i];
 
-        // SOMA VALORES NF
-        let valorNF = linha[idxValor] || "0";
+        if (idxValor > -1) {
 
-        valorNF = valorNF
-            .replace(/\./g,'')
-            .replace(',','.');
+    let valorNF = linha[idxValor] || "0";
 
-        somaValor += parseFloat(valorNF) || 0;
+    valorNF = valorNF.replace(/R\$/gi, '').trim();
 
-        // SOMA PESO
-        let peso = linha[idxPeso] || "0";
+    if (valorNF.includes(',')) {
+        valorNF = valorNF.replace(/\./g, '').replace(',', '.');
+    }
 
-        peso = peso
-            .replace(/\./g,'')
-            .replace(',','.');
+    somaValor += Number(valorNF) || 0;
+}
 
-        somaPeso += parseFloat(peso) || 0;
+       if (idxPeso > -1) {
 
-        // LISTA NF
-        if(linha[idxNF]){
+    let peso = linha[idxPeso] || "0";
+
+    // remove KG e espaços
+    peso = peso.replace(/KG/gi, '').trim();
+
+    // converte formato BR corretamente
+    if (peso.includes(',')) {
+        peso = peso.replace(/\./g, '').replace(',', '.');
+    }
+
+    somaPeso += Number(peso) || 0;
+}
+
+        if(idxNF > -1 && linha[idxNF]){
             listaNF.push(linha[idxNF]);
         }
     }
 
-    // FORMATA MOEDA BR
     const valorFormatado = somaValor.toLocaleString('pt-BR',{
         style:'currency',
         currency:'BRL'
     });
 
-    // FORMATA PESO
     const pesoFormatado = somaPeso.toLocaleString('pt-BR',{
         minimumFractionDigits:3,
         maximumFractionDigits:3
     });
 
-    // EXIBE
-    document.getElementById("resPlaca").innerText =
-        primeiraLinha[idxPlaca] || "-";
-
-    document.getElementById("resNF").innerText =
-        listaNF.length + " NF(s)";
-
-    document.getElementById("resOrigem").innerText =
-        primeiraLinha[idxOrigem] || "-";
-
-    document.getElementById("resDestino").innerText =
-        primeiraLinha[idxDestino] || "-";
-
-    document.getElementById("resValor").innerText =
-        valorFormatado;
-
-    document.getElementById("resPeso").innerText =
-        pesoFormatado + " KG";
+    document.getElementById("resPlaca").innerText = idxPlaca > -1 ? (primeiraLinha[idxPlaca] || "-") : "-";
+    document.getElementById("resNF").innerText = listaNF.length + " NF(s)";
+    document.getElementById("resOrigem").innerText = idxOrigem > -1 ? (primeiraLinha[idxOrigem] || "-") : "-";
+    document.getElementById("resDestino").innerText = idxDestino > -1 ? (primeiraLinha[idxDestino] || "-") : "-";
+    document.getElementById("resValor").innerText = valorFormatado;
+    document.getElementById("resPeso").innerText = pesoFormatado + " KG";
 }
+
 /* ===========================
    EXPORTAR CSV
 =========================== */
 
 function baixarExcel(){
-
-    if(dadosTabela.length === 0){
+    if(dadosFiltrados.length === 0){
         alert("Nenhum dado carregado.");
         return;
     }
 
     let csv = "";
-
-    dadosTabela.forEach(linha=>{
-
-        const formatada = linha.map(campo => {
-
+    dadosFiltrados.forEach(linha=>{
+        const formatada = inline = linha.map(campo => {
             campo = campo.replace(/"/g,'""');
-
             return `"${campo}"`;
-
         }).join(";");
-
         csv += formatada + "\n";
     });
 
-    const blob = new Blob(
-        [csv],
-        {type:'text/csv;charset=utf-8;'}
-    );
-
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const link = document.createElement("a");
-
     link.href = URL.createObjectURL(blob);
-
     link.download = "Conversor_PBR.csv";
-
     document.body.appendChild(link);
-
     link.click();
-
     document.body.removeChild(link);
 }
 
 function copiarChaves(){
-
-    if(dadosTabela.length < 3){
+    if(dadosFiltrados.length < 2){
         alert("Nenhum dado carregado.");
         return;
     }
 
-    const header = dadosTabela[0];
-
+    const header = dadosFiltrados[0];
     const idxAccessKey = header.indexOf("ACCESS_KEY");
 
     if(idxAccessKey < 0){
@@ -534,33 +706,21 @@ function copiarChaves(){
     }
 
     let chaves = [];
-
-    for(let i = 2; i < dadosTabela.length; i++){
-
-        const linha = dadosTabela[i];
-
+    for(let i = 2; i < dadosFiltrados.length; i++){
+        const linha = dadosFiltrados[i];
         const chave = linha[idxAccessKey];
-
         if(chave && chave.trim() !== ""){
             chaves.push(chave.trim());
         }
     }
 
     const texto = chaves.join('\n');
-
     navigator.clipboard.writeText(texto)
         .then(() => {
-
-            alert(
-                chaves.length +
-                " chave(s) copiadas para memória."
-            );
-
+            alert(chaves.length + " chave(s) copiadas para memória.");
         })
         .catch(() => {
-
             alert("Erro ao copiar.");
-
         });
 }
 </script>
