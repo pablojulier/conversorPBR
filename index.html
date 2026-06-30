@@ -179,7 +179,7 @@ tr:nth-child(even){
 
 <div class="container">
 
-    <h1>Conversor PBR 1.60</h1>
+    <h1>Conversor PBR 1.7</h1>
 
     <div class="drop-area" id="dropArea">
         Arraste o arquivo TXT aqui ou clique para selecionar
@@ -206,6 +206,14 @@ tr:nth-child(even){
             <option value="TODOS">Todos</option>
         </select>
 
+        <input type="text" id="chaveBuscaDanfe"
+       placeholder="Digite a chave da NFe"
+       style="padding:10px;border-radius:8px;border:1px solid #ccc;width:280px;">
+
+<button onclick="buscarDanfeExterno()"
+        style="background:#16a34a;color:white;">
+    Buscar XML
+</button>
     </div>
 
     <div class="resumo">
@@ -722,6 +730,21 @@ function copiarChaves(){
         .catch(() => {
             alert("Erro ao copiar.");
         });
+}
+function buscarDanfeExterno(){
+
+    const chave = document.getElementById("chaveBuscaDanfe").value.trim();
+
+    if(!chave){
+        alert("Digite uma chave.");
+        return;
+    }
+
+    // Abre o site já pronto para consulta
+    window.open(
+        "https://meudanfe.com.br",
+        "_blank"
+    );
 }
 </script>
 
